@@ -9,6 +9,59 @@ import wave
 import ipywidgets as widgets
 from IPython.display import Audio, display
 
+item0 = widgets.Text(
+        value='',
+        placeholder='Type something',
+        description='Mot:',
+        disabled=False
+    )
+
+item1 = widgets.Text(
+        value='',
+        placeholder='Type something',
+        description='Traduction:',
+        disabled=False
+    )
+
+Record = widgets.Button(
+        description='Record',
+        disabled=False,
+        button_style='',
+        tooltip='Record',
+        icon='fa-microphone',
+    )
+Record.path=""
+
+description = widgets.Select(
+        options=['nom commun', 'verbe', 'expression', 'phrase'],
+        value='nom commun',
+        description='type: ',
+        disabled=False
+    )
+
+addToList = widgets.Button(
+        description='Add to list',
+        disabled=False,
+        button_style='',
+        tooltip='Click me',
+        icon='plus'
+    )
+
+addToLib = widgets.Button(
+        description='Add to library',
+        disabled=False,
+        button_style='',
+        icon='plus'
+    )
+
+clear = widgets.Button(
+    description='Clear existing Library'
+)
+
+output = widgets.Output()
+
+vbox = widgets.VBox([item0, item1, Record, description, addToList, addToLib, output])
+
 def recordAudioDescription(input):
     # Settings
     FORMAT = pyaudio.paInt16
@@ -49,54 +102,26 @@ def getAudioDescription(input):
     recordAudioDescription(input)
     path = convertAudioDescription(input)
     return path
-    
+
+
+def initLexique(count):
+    lexique = [str(count)]
+    return lexique
+
+def isJson(jsonFilename):
+    return os.path.exists(jsonFilename)
 
 def createDictionnary(jsonFileName):
-    countDico = 0
-    lexique = [str(countDico)]
-
-    with open(jsonFileName, 'r') as f:
-        existing_data = json.load(f)
-
-    item0 = widgets.Text(
-        value='',
-        placeholder='Type something',
-        description='Add item0:',
-        disabled=False
-    )
-
-    item1 = widgets.Text(
-        value='',
-        placeholder='Type something',
-        description='Add item1:',
-        disabled=False
-    )
-
-    Record = widgets.Button(
-        description='Record',
-        disabled=False,
-        button_style='',
-        tooltip='Record',
-        icon='fa-microphone'
-    )
-    Record.path = ''
-
-    description = widgets.Select(
-        options=['nom commun', 'verbe', 'expression', 'phrase'],
-        value='nom commun',
-        description='type: ',
-        disabled=False
-    )
-
-    addToList = widgets.Button(
-        description='Add to list',
-        disabled=False,
-        button_style='',
-        tooltip='Click me',
-        icon='plus'
-    )
-
-    output = widgets.Output()
+    library = dict()    
+    if isJson(jsonFileName):
+        with open(jsonFileName, 'r') as file:
+            initialLib = json.load(file)
+        library.update(initialLib) 
+    else:
+        with open(jsonFileName, 'w') as file:
+            file.write('[]')
+    cpt = 0
+    lex = initLexique(cpt)
     
     def on_Record_click(b):
         with output:
@@ -109,31 +134,23 @@ def createDictionnary(jsonFileName):
 
     def on_addToList_click(b):
         with output:
-            lexique.append((item0.value, item1.value, Record.path, description.value))
+            lex.append((item0.value, item1.value, Record.path, description.value))
             item0.value = ""
             item1.value = ""
             Record.path = ""
+            print(f"{lex[-1][0]} <-> {lex[-1][1]} <- type = {lex[-1][3]}")
 
     addToList.on_click(on_addToList_click)
 
-    addToLib = widgets.Button(
-        description='Add to library',
-        disabled=False,
-        button_style='',
-        icon='plus'
-    )
-    def on_addToLib_click(countDico, lexique):
-        countDico+=1
-        existing_data.extend(lexique)
-        with open(jsonFileName, 'w') as f:
-            json.dump(existing_data, f)
-        lexique = []
+    def on_addToLib_click():
+        library.update({lex[0]:lex[1:]})
+        with open(jsonFileName, 'w') as file:
+            json.dump(library,file)
 
-    addToLib.on_click(on_addToLib_click(countDico, lexique))
-    vbox = widgets.VBox([item0, item1, Record, description, addToList, addToLib, output])
+    addToLib.on_click(on_addToLib_click())
+
     display(vbox)
     
-
 
 def discoverMode(jsonFileName):
     with open(jsonFileName, 'r') as json_file:
