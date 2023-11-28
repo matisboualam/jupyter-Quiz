@@ -3,6 +3,7 @@ import json
 import IPython
 import random
 import pydub
+import pandas as pd
 from pydub import AudioSegment
 import pyaudio
 import wave
@@ -32,14 +33,14 @@ Record = widgets.Button(
     )
 Record.path=""
 
-description = widgets.Select(
+Description = widgets.Select(
         options=['nom commun', 'verbe', 'expression', 'phrase'],
         value='nom commun',
         description='type: ',
         disabled=False
     )
 
-addToList = widgets.Button(
+AddToList = widgets.Button(
         description='Add to list',
         disabled=False,
         button_style='',
@@ -47,20 +48,25 @@ addToList = widgets.Button(
         icon='plus'
     )
 
-addToLib = widgets.Button(
-        description='Add to library',
+Display = widgets.Button(
+        description='Display',
         disabled=False,
         button_style='',
+        tooltip='Click me',
         icon='plus'
     )
 
-clear = widgets.Button(
-    description='Clear existing Library'
-)
+Clear = widgets.Button(
+        description='Clear',
+        disabled=False,
+        button_style='',
+        tooltip='Click me',
+        icon='plus'
+    )
 
 output = widgets.Output()
 
-vbox = widgets.VBox([item0, item1, Record, description, addToList, addToLib, output])
+vbox = widgets.VBox([item0, item1, Record, Description, AddToList, Display, Clear, output])
 
 def recordAudioDescription(input):
     # Settings
@@ -68,7 +74,7 @@ def recordAudioDescription(input):
     CHANNELS = 1
     RATE = 44100
     CHUNK = 1024
-    RECORD_SECONDS = 5
+    RECORD_SECONDS = 2.5
     WAVE_OUTPUT_FILENAME = input+".wav"
     audio = pyaudio.PyAudio()
     stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
@@ -103,26 +109,15 @@ def getAudioDescription(input):
     path = convertAudioDescription(input)
     return path
 
+def empty_folder(folder_path):
+    for file_name in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, file_name)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+        elif os.path.isdir(file_path):
+            empty_folder(file_path)
 
-def initLexique(count):
-    lexique = [str(count)]
-    return lexique
-
-def isJson(jsonFilename):
-    return os.path.exists(jsonFilename)
-
-def createDictionnary(jsonFileName):
-    library = dict()    
-    if isJson(jsonFileName):
-        with open(jsonFileName, 'r') as file:
-            initialLib = json.load(file)
-        library.update(initialLib) 
-    else:
-        with open(jsonFileName, 'w') as file:
-            file.write('[]')
-    cpt = 0
-    lex = initLexique(cpt)
-    
+def createDictionnary(fileName):
     def on_Record_click(b):
         with output:
             folderName = 'au-description/'
@@ -133,49 +128,40 @@ def createDictionnary(jsonFileName):
     Record.on_click(on_Record_click)
 
     def on_addToList_click(b):
+        dictionnary = pd.read_csv(fileName)
         with output:
-            lex.append((item0.value, item1.value, Record.path, description.value))
-            item0.value = ""
-            item1.value = ""
-            Record.path = ""
-            print(f"{lex[-1][0]} <-> {lex[-1][1]} <- type = {lex[-1][3]}")
+            data = {
+                    'mot' : item0.value,
+                    'trad' : item1.value, 
+                    'lienAudio' : Record.path, 
+                    'type' : Description.value
+                    }
+        dictionnary = pd.concat([dictionnary, pd.DataFrame([data])], ignore_index=True)
+        print("Dictionnaire :\n", dictionnary)
+        print("\n")
+        dictionnary.to_csv('dictionnary.csv', index=False)
 
-    addToList.on_click(on_addToList_click)
+    AddToList.on_click(on_addToList_click)
 
-    def on_addToLib_click():
-        library.update({lex[0]:lex[1:]})
-        with open(jsonFileName, 'w') as file:
-            json.dump(library,file)
+    def on_display_click(b):
+        dictionnary = pd.read_csv(fileName)
+        print("Dictionnaire :\n", dictionnary)
+        print("\n")
 
-    addToLib.on_click(on_addToLib_click())
+    Display.on_click(on_display_click)
+
+    def on_clear_click(b):
+        data = {'mot' : None,
+                'trad' : None, 
+                'lienAudio' : None, 
+                'type' : None
+                }
+        pd.DataFrame([data]).to_csv('dictionnary.csv', index=False)
+        empty_folder('au-description')
+
+    Clear.on_click(on_clear_click)
 
     display(vbox)
-    
 
-def discoverMode(jsonFileName):
-    with open(jsonFileName, 'r') as json_file:
-        dico = json.load(json_file)
-    if len(dico)<=1 :
-        print("empty lexique")
-        return 0
-    index = random.randint(0, len(dico)-1)
-    output = widgets.Output()
-    FrenchWord = widgets.Button(
-        description='',
-        icon='question-circle'
-    )
-    def on_FrenchWord_click(b):
-        with output:
-            FrenchWord.description = dico[index][0]
-            FrenchWord.icon = ''
-    FrenchWord.on_click(on_FrenchWord_click)
-    ArabicWord = widgets.Button(description=dico[index][1])
-    if dico[index][2] != '':
-        mp3_file = dico[index][2]
-        audio_widget = Audio(mp3_file, autoplay=False)
-        display(audio_widget)
-    else :
-        display(ArabicWord)
-    display(FrenchWord)
 
     
